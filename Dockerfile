@@ -13,4 +13,3 @@ WORKDIR /app
 RUN poetry install
 
 CMD ["poetry", "run", "python", "discord-reminderbot.py"] 
-VOLUME [ "/app/cogs/modules/files" ]
