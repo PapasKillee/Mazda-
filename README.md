@@ -413,6 +413,13 @@
     - 1件の場合: ENABLE_SLASH_COMMAND_GUILD_ID=18471289371923
     - 2件の場合: ENABLE_SLASH_COMMAND_GUILD_ID=18471289371923;1389103890128390
 
+### TIMEZONE
+
+- リマインドの入力・表示に使うタイムゾーンをIANA形式で指定します(夏時間は自動で考慮されます)
+- 未指定の場合は`America/Los_Angeles`
+- 例: TIMEZONE=America/Los_Angeles / TIMEZONE=Asia/Tokyo
+- 注意: すでに登録されているリマインド(`remind_datetime`)は、登録時のタイムゾーンの時刻として保存されているため、設定を変更すると実行される時刻がずれます
+
 ### 廃止された環境変数
 
 - `ENABLE_SLASH_COMMAND_GUILD_ID_LIST`: ENABLE_SLASH_COMMAND_GUILD_IDに置き換えられました

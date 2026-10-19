@@ -1,4 +1,4 @@
-from datetime import timedelta, timezone
+from datetime import timedelta
 from dateutil import rrule
 from dateutil.relativedelta import relativedelta
 from discord.ext import tasks, commands
@@ -15,7 +15,7 @@ LOG = getLogger('reminderbot')
 # コグとして用いるクラスを定義。
 class ReminderCog(commands.Cog):
     guilds = settings.ENABLE_SLASH_COMMAND_GUILD_ID
-    JST = timezone(timedelta(hours=9), 'JST')
+    LOCAL_TZ = settings.LOCAL_TZ
     NUM_1to3keta = '^[0-9]{1,3}$'
     SHOW_ME = '自分のみ'
     NOT_SILENT = 'ふつう'
@@ -207,7 +207,7 @@ class ReminderCog(commands.Cog):
     async def update_by_queue(self):
         LOG.info('update_by_queue start')
         while True:
-            now = datetime.datetime.now(self.JST)
+            now = datetime.datetime.now(self.LOCAL_TZ)
             remind = None
             # 取得できない場合は処理終了
             try:
@@ -215,12 +215,12 @@ class ReminderCog(commands.Cog):
                 remind,remind_msg = self.db_queue.get_nowait()
             except:
                 LOG.debug('キュー取得(db_queue)エラー')
-                end = datetime.datetime.now(self.JST)
+                end = datetime.datetime.now(self.LOCAL_TZ)
                 LOG.info(f'update_by_queue is end.({end} / db_queue:{self.db_queue.qsize()})')
                 break
 
             # 処理したリマインドを完了にする(読み込みなし)
-            remind_datetime = dateutil.parser.parse(f'{remind[1]} +0900 (JST)', yearfirst=True)
+            remind_datetime = dateutil.parser.parse(f'{remind[1]}', yearfirst=True).replace(tzinfo=self.LOCAL_TZ)
             try:
                 await self.remind.update_status(remind[0], remind[2], self.remind.STATUS_FINISHED, False)
             except:
@@ -281,7 +281,7 @@ class ReminderCog(commands.Cog):
 
     @tasks.loop(seconds=10.0)
     async def make_send_printer(self):
-        now = datetime.datetime.now(self.JST)
+        now = datetime.datetime.now(self.LOCAL_TZ)
         LOG.info(f'make_send_printer is kicked.({now})')
 
         # 準備が完了していない状態の場合、何もしない
@@ -289,8 +289,8 @@ class ReminderCog(commands.Cog):
             LOG.info(f'make_send_printer is not ready yet.({now})')
             return
         for remind in self.remind.remind_rows:
-            remind_datetime = dateutil.parser.parse(f'{remind[1]} +0900 (JST)',
-                                                    yearfirst=True)
+            remind_datetime = dateutil.parser.parse(f'{remind[1]}',
+                                                    yearfirst=True).replace(tzinfo=self.LOCAL_TZ)
             # リマインドを送信キューに追加(remind_datetimeが現在以前、かつ、(前回実行なしor前回実行よりremind_datetimeが後))
             if remind_datetime <= now:
                 if self.before_time is None or remind_datetime > self.before_time:
@@ -309,13 +309,13 @@ class ReminderCog(commands.Cog):
             self.times = 0
         else:
             self.times = self.times + 1
-        end = datetime.datetime.now(self.JST)
+        end = datetime.datetime.now(self.LOCAL_TZ)
         self.before_time = end
         LOG.info(f'make_send_printer is end.({end} / send_queue:{self.send_queue.qsize()} / db_queue:{self.db_queue.qsize()})')
 
     @tasks.loop(seconds=15.0)
     async def send_printer(self):
-        now = datetime.datetime.now(self.JST)
+        now = datetime.datetime.now(self.LOCAL_TZ)
 
         # 送信キューが空の場合、何もしない
         if self.send_queue.empty():
@@ -324,12 +324,12 @@ class ReminderCog(commands.Cog):
             LOG.info(f'send_printer is kicked.({now})')
             send_task = asyncio.create_task(self.send_by_queue())
             await send_task
-            end = datetime.datetime.now(self.JST)
+            end = datetime.datetime.now(self.LOCAL_TZ)
             LOG.info(f'send_printer is end.({end})')
 
     @tasks.loop(seconds=20.0)
     async def update_printer(self):
-        now = datetime.datetime.now(self.JST)
+        now = datetime.datetime.now(self.LOCAL_TZ)
 
         # 送信キューが空以外、または、DBキューが空の場合、何もしない
         if not self.send_queue.empty() or self.db_queue.empty():
@@ -339,7 +339,7 @@ class ReminderCog(commands.Cog):
             update_task = asyncio.create_task(self.update_by_queue())
             await update_task
             self.remind.decode_and_read()
-            end = datetime.datetime.now(self.JST)
+            end = datetime.datetime.now(self.LOCAL_TZ)
             LOG.info(f'update_printer is end.({end})')
 
     @app_commands.command(
@@ -424,7 +424,7 @@ class ReminderCog(commands.Cog):
         remind_datetime = None
         try:
             remind_datetime = dateutil.parser.parse(
-                f'{date} {time} +0900 (JST)', yearfirst=True)
+                f'{date} {time}', yearfirst=True).replace(tzinfo=self.LOCAL_TZ)
             # 1日加算の処理
             remind_datetime = remind_datetime + relativedelta(days=+int(add_day))
         except ValueError as e:
@@ -440,7 +440,7 @@ class ReminderCog(commands.Cog):
         repeat_flg = '0'
         if repeat_interval:
             # 間隔設定のチェック
-            now = datetime.datetime.now(self.JST)
+            now = datetime.datetime.now(self.LOCAL_TZ)
             next_remind_datetime = self.check_next_reminder_date(remind_datetime, repeat_interval, now)
             if next_remind_datetime is None:
                 error_message = '繰り返し間隔が不正のため、リマインドを登録できませんでした'
@@ -634,7 +634,7 @@ class ReminderCog(commands.Cog):
         remind_datetime = None
         try:
             remind_datetime = dateutil.parser.parse(
-                f'{row[1]} +0900 (JST)', yearfirst=True)
+                f'{row[1]}', yearfirst=True).replace(tzinfo=self.LOCAL_TZ)
         except ValueError as e:
             LOG.info(error_message)
             LOG.info(e)
@@ -659,7 +659,7 @@ class ReminderCog(commands.Cog):
         next_remind_datetime = None
         try:
             next_remind_datetime = dateutil.parser.parse(
-                f'{date} {time} +0900 (JST)', yearfirst=True)
+                f'{date} {time}', yearfirst=True).replace(tzinfo=self.LOCAL_TZ)
             # 1日加算の処理
             next_remind_datetime = next_remind_datetime + relativedelta(days=+int(add_day))
         except ValueError as e:
@@ -1160,7 +1160,7 @@ class ReminderCog(commands.Cog):
 
     def check_date_and_convert(self, date:str, base_date=None):
         if base_date is None:
-            base_date = datetime.datetime.now(self.JST).date()
+            base_date = datetime.datetime.now(self.LOCAL_TZ).date()
         if re.match(r'[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}', date) \
         or re.match(r'[0-9]{4}/[0-9]{1,2}/[0-9]{1,2}', date) \
         or re.match(r'[0-9]{8}', date):
@@ -1182,7 +1182,7 @@ class ReminderCog(commands.Cog):
         add_day = 0
         result_time = None
         if base_time is None:
-            base_time = datetime.datetime.now(self.JST)
+            base_time = datetime.datetime.now(self.LOCAL_TZ)
         m_hours = re.match('^([0-9]{1,3})h$', time)
         m_minutes = re.match('^([0-9]{1,4})mi$', time)
         m_normal = re.match('^([0-9]{1,2}:[0-9]{1,2})$', time)
