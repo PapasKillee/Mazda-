@@ -1,4 +1,4 @@
-from datetime import timedelta, timezone
+from datetime import timezone
 from os.path import join, dirname
 from logging import getLogger
 from .aes_angou import Aes_angou
@@ -19,7 +19,7 @@ class Remind:
     STATUS_RECOVERED = 'Recovered'
     STATUS_DELETED_BY_GUILD = 'DeletedByGuild'
     STATUS_RECOVERED_BY_GUILD = 'RecoveredByGuild'
-    JST = timezone(timedelta(hours=+9), 'JST')
+    LOCAL_TZ = settings.LOCAL_TZ
     # 環境変数REMIND_CONTROL_CHANNELにあれば、リマインドの管理先としてそちらの名前を使う(複数のリマインダーBotがあって競合するときに使用)
     if settings.REMIND_CONTROL_CHANNEL_NAME:
         REMIND_CONTROL_CHANNEL = settings.REMIND_CONTROL_CHANNEL_NAME
@@ -104,7 +104,7 @@ class Remind:
             if (settings.IS_HEROKU and not os.path.exists(file_path_first_time)):
                 if settings.IS_HEROKU:
                     with open(file_path_first_time, 'w') as f:
-                        now = datetime.datetime.now(self.JST)
+                        now = datetime.datetime.now(self.LOCAL_TZ)
                         f.write(now.strftime('%Y/%m/%d(%a) %H:%M:%S'))
                         LOG.debug(f'{file_path_first_time}が存在しないので、作成を試みます')
                 attachment_file_date = None
@@ -129,18 +129,18 @@ class Remind:
                             if settings.RESTRICT_ATTACHMENT_FILE and  message.author != guild.me:
                                 continue
                             LOG.debug(f'con: {message.content}, attchSize:{len(message.attachments)}')
-                            # message_created_at_jst = datetime.datetime(message.created_at, tzinfo=self.JST)
+                            # message_created_at_local = datetime.datetime(message.created_at, tzinfo=self.LOCAL_TZ)
                             message_created_at = message.created_at.replace(tzinfo=timezone.utc)
-                            message_created_at_jst = message_created_at.astimezone(self.JST)
+                            message_created_at_local = message_created_at.astimezone(self.LOCAL_TZ)
 
                             if attachment_file_date is not None:
-                                LOG.debug(f'date: {attachment_file_date} <<<<<<< {message_created_at_jst}, {attachment_file_date < message_created_at_jst}')
+                                LOG.debug(f'date: {attachment_file_date} <<<<<<< {message_created_at_local}, {attachment_file_date < message_created_at_local}')
                             # file_nameが本文である場合、ファイルを取得する
                             if message.content == file_name:
                                 if len(message.attachments) > 0:
                                     # 日付が新しい場合、ファイルを取得
-                                    if attachment_file_date is None or attachment_file_date < message_created_at_jst:
-                                        attachment_file_date = message_created_at_jst
+                                    if attachment_file_date is None or attachment_file_date < message_created_at_local:
+                                        attachment_file_date = message_created_at_local
                                         file_path = join(dirname(__file__), 'files' + os.sep + file_name)
                                         await message.attachments[0].save(file_path)
                                         LOG.info(f'channel_file_save:{guild.name} / datetime:{attachment_file_date.strftime("%Y/%m/%d(%a) %H:%M:%S")}')
@@ -250,7 +250,7 @@ class Remind:
         with conn:
             cur = conn.cursor()
 
-            now = datetime.datetime.now(self.JST)
+            now = datetime.datetime.now(self.LOCAL_TZ)
 
             insert_sql = 'INSERT INTO reminder_table (remind_datetime,guild,member,channel,remind_message,status,repeat_count,repeat_max_count,repeat_flg,repeat_interval,no_reply,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'
             remind_param = (remind_datetime, guild_id, author_id,
@@ -292,7 +292,7 @@ class Remind:
 
         conn = sqlite3.connect(self.FILE_PATH)
         with conn:
-            now = datetime.datetime.now(self.JST)
+            now = datetime.datetime.now(self.LOCAL_TZ)
 
             remind_param = (status, now, remind_id)
             update_sql = 'update reminder_table set status=?, updated_at = ? where id = ?'
@@ -350,7 +350,7 @@ class Remind:
 
         conn = sqlite3.connect(self.FILE_PATH)
         with conn:
-            now = datetime.datetime.now(self.JST)
+            now = datetime.datetime.now(self.LOCAL_TZ)
             cur = conn.cursor()
 
             select_update_sql = 'select count(*) from reminder_table where member = ? and status = ?'
@@ -401,7 +401,7 @@ class Remind:
 
         conn = sqlite3.connect(self.FILE_PATH)
         with conn:
-            now = datetime.datetime.now(self.JST)
+            now = datetime.datetime.now(self.LOCAL_TZ)
             cur = conn.cursor()
 
             select_update_sql = 'select count(*) from reminder_table where id = ? '
@@ -452,7 +452,7 @@ class Remind:
 
         conn = sqlite3.connect(self.FILE_PATH)
         with conn:
-            now = datetime.datetime.now(self.JST)
+            now = datetime.datetime.now(self.LOCAL_TZ)
             cur = conn.cursor()
 
             select_update_sql = 'select count(*) from reminder_table where member = ? and status = ?'
@@ -581,7 +581,7 @@ class Remind:
                 continue
 
             # all系で実行された場合、Member_IDを付与 & 日付表示
-            tmp_datetime = dateutil.parser.parse(row[1])
+            tmp_datetime = dateutil.parser.parse(row[1]).replace(tzinfo=self.LOCAL_TZ)
             unixtime = int(tmp_datetime.timestamp())
             message += f'No. {row[0]} Remind_datetime: <t:{unixtime}:F>'
             if is_all:

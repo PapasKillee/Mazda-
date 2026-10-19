@@ -2,6 +2,7 @@ import os, discord
 from os.path import join, dirname
 from dotenv import load_dotenv
 from logging import DEBUG, INFO, WARNING, ERROR
+from dateutil import tz
 
 def if_env(str):
     '''
@@ -31,6 +32,15 @@ def get_log_level(str):
     else:
         return WARNING
 
+def get_local_tz(name):
+    '''
+    IANAタイムゾーン名からtzinfoを取得(夏時間も自動で考慮される)
+    '''
+    local_tz = tz.gettz(name)
+    if local_tz is None:
+        raise ValueError(f'Unknown timezone: {name!r}. Set TIMEZONE to an IANA name such as America/Los_Angeles.')
+    return local_tz
+
 def split_guild_env(str):
     guilds = []
     if str is None or str == '':
@@ -56,3 +66,6 @@ PRIORITY_GUILD = os.environ.get('PRIORITY_GUILD')
 REMIND_CONTROL_CHANNEL_NAME = os.environ.get('REMIND_CONTROL_CHANNEL_NAME')
 APPLICATION_ID = os.environ.get('APPLICATION_ID')
 ENABLE_SLASH_COMMAND_GUILD_ID = split_guild_env(os.environ.get('ENABLE_SLASH_COMMAND_GUILD_ID'))
+TIMEZONE = os.environ.get('TIMEZONE', 'America/Los_Angeles')
+# リマインドの入力・表示に使うタイムゾーン(全体で共有する)
+LOCAL_TZ = get_local_tz(TIMEZONE)

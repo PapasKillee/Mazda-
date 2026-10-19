@@ -1,12 +1,11 @@
 from cogs.modules import settings
 from discord.ext import commands
 from logging import basicConfig, getLogger, StreamHandler, FileHandler, Formatter, NOTSET
-from datetime import timedelta, timezone
 import discord, os, datetime, asyncio
 
 # 時間
-JST = timezone(timedelta(hours=9), 'JST')
-now = datetime.datetime.now(JST)
+LOCAL_TZ = settings.LOCAL_TZ
+now = datetime.datetime.now(LOCAL_TZ)
 
 # ストリームハンドラの設定
 stream_handler = StreamHandler()
